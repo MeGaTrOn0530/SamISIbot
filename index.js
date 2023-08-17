@@ -1,8 +1,9 @@
 const TelegramBot = require('node-telegram-bot-api');
-
-// Telegram bot API tokenini o'zingiz bilan almashtiring
 const token = '6410203976:AAEu5fKYq90F3eW1AvUmnLLz5ctt7X6c6Sc';
-const bot = new TelegramBot(token, {polling: true});
+const bot = new TelegramBot(token, {polling: true});  
+
+let users = {}; // Foydalanuvchilar ma'lumotlarini saqlash uchun obyekt
+
 bot.setMyCommands([
   {
     command: '/start',
@@ -18,7 +19,6 @@ bot.on('message', async msg => {
   const text = msg.text;
   const chatId = msg.chat.id;
 
-
   if (text === '/info') {
     return bot.sendMessage(
       chatId,
@@ -29,23 +29,24 @@ bot.on('message', async msg => {
   }
 });
 
-
-// "/start" buyrug'iga javob berish
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
-  const userFullName = msg.from.first_name + ' ' + msg.from.last_name;
 
   bot.sendMessage(
     chatId,
-    `Assalomu alaykum xurmatli ${userFullName}! Samarqand Iqtisodiyot va Servis Institutining RTTM bilan aloqa botiga xush kelibsiz.\n\n` +
-    'Kantaktlaringizni yuborish uchun "📞 Telefon raqamni yuborish" tugmasini bosing.',
+    'Assalomu alaykum! Botimizga xush kelibsiz. Telefon raqamingizni yuboring.',
     {
       reply_markup: {
-        keyboard: [['📞 Telefon raqamni yuborish']],        
-        request_contact: true,
-        one_time_keyboard: true,
-        resize_keyboard: true
-      }
+        keyboard: [
+          [
+            {
+              text: '📞 Telefon raqamni yuborish',
+              request_contact: true,
+            },
+          ],
+        ],
+        resize_keyboard: true,
+      },
     }
   );
 });
@@ -55,45 +56,107 @@ bot.on('contact', (msg) => {
   const userFullName = msg.from.first_name + ' ' + msg.from.last_name;
   const phoneNumber = msg.contact.phone_number;
 
-  bot.sendMessage(chatId, `Assalomu alaykum xurmatli ${userFullName}!\nSizning telefon raqamingiz: ${phoneNumber}\nLogin parolni yuboring.`);
+  users[chatId] = {
+    fullName: userFullName,
+    phoneNumber: phoneNumber,
+    state: 'phone',
+  };
+
+  bot.sendMessage(
+    chatId,
+    `Assalomu alaykum, ${userFullName}!\nSizning telefon raqamingiz: ${phoneNumber}\nLogin va parol olish yoki tiklash uchun quyidagi tugmalardan birini tanlang:`,
+    {
+      reply_markup: {
+        keyboard: [
+          [
+            {
+              text: '🔐 Login va parolni tiklash',
+            },
+            {
+              text: '📝 Login va parol olish',
+            },
+          ],
+          [
+            {
+              text: '❌ Bekor qilish',
+            },
+          ],
+        ],
+        resize_keyboard: true,
+      },
+    }
+  );
 });
 
-
-// "📞 Telefon raqamni yuborish" tugmasi uchun javob berish
 bot.onText(/📞 Telefon raqamni yuborish/, (msg) => {
   const chatId = msg.chat.id;
 
   bot.sendMessage(
     chatId,
-    'Raqam qabul qilindi davom etish uchun quyidagilardan birini tanlang',
+    'Raqamingizni yuboring:',
     {
       reply_markup: {
-        keyboard: [['📝 Login va parol olish', '🔐 Login va parolni tiklash']],
+        keyboard: [
+          [
+            {
+              text: '❌ Bekor qilish',
+            },
+          ],
+        ],
         resize_keyboard: true,
-        request_contact: true
-      }
+      },
     }
   );
 });
 
-// "📝 Login va parol olish" tugmasi uchun javob berish
-bot.onText(/📝 Login va parol olish/, (msg) => {
+bot.onText(/❌ Bekor qilish/, (msg) => {
   const chatId = msg.chat.id;
 
   bot.sendMessage(
     chatId,
-    'Sizining mavqeyingizdagi qaysi tugmaga tog\'ri keladi',
+    'Amal bekor qilindi. Raqamni yuborishni qaytadan boshlang:',
     {
       reply_markup: {
-        keyboard: [['Xodim', 'Talaba', 'O\'ituvchi']],
-        resize_keyboard: true
-      }
+        keyboard: [
+          [
+            {
+              text: '📞 Telefon raqamni yuborish',
+              request_contact: true,
+            },
+          ],
+        ],
+        resize_keyboard: true,
+      },
     }
   );
 });
 
+bot.onText(/📝 Login va parol olish/, (msg) => {
+  const chatId = msg.chat.id;
 
-// "Xodim", "Talaba" yoki "O\'ituvchi" tanlanda javob berish
+  if (users[chatId]?.state === 'phone') {
+    users[chatId].state = 'loginPassword';
+    bot.sendMessage(
+      chatId,
+      'Sizining mavqeyingizdagi qaysi tugmaga tog\'ri keladi',
+      {
+        reply_markup: {
+          keyboard: [
+            ['Xodim', 'Talaba', 'O\'qituvchi'],
+            [
+              {
+                text: '❌ Bekor qilish',
+              },
+            ],
+          ],
+          resize_keyboard: true,
+        },
+      }
+    );
+  }
+});
+
+// "Xodim", "Talaba" yoki "O\'qituvchi" tanlanda javob berish
 bot.onText(/Xodim/, (msg) => {
   const chatId = msg.chat.id;
   const userRole = msg.text.toLowerCase();
@@ -103,8 +166,8 @@ bot.onText(/Xodim/, (msg) => {
     `Iltimos, ism va familyangizni kiriting (masalan: Azizbek Avalov):`,
     {
       reply_markup: {
-        remove_keyboard: true
-      }
+        remove_keyboard: true,
+      },
     }
   );
 
@@ -115,8 +178,8 @@ bot.onText(/Xodim/, (msg) => {
       `Iltimos, Lavozimingiz kiriting (masalan: Muxandis dasturchi):`,
       {
         reply_markup: {
-          remove_keyboard: true
-        }
+          remove_keyboard: true,
+        },
       }
     );
 
@@ -127,36 +190,33 @@ bot.onText(/Xodim/, (msg) => {
         `Pasport rasmingizni tashlang`,
         {
           reply_markup: {
-            remove_keyboard: true
-          }
+            remove_keyboard: true,
+          },
         }
       );
 
       bot.once('message', (msg) => {
-       if (msg.text) {
+        if (msg.text) {
           // Fayl matn shaklida bo'lsa
           bot.sendMessage(chatId, `Rasm korinishda yuboring, iltimos.`);
-        }
-        else if (msg.photo) {
+        } else if (msg.photo) {
           // Fayl photo formatda bo'lsa
           bot.sendMessage(
             chatId,
             `Sizga login va parol tez orada yuboriladi`,
             {
               reply_markup: {
-                remove_keyboard: true
-              }
+                remove_keyboard: true,
+              },
             }
           );
-        } 
+        }
       });
-      
-      
     });
   });
 });
 
-bot.onText(/O\'ituvchi/, (msg) => {
+bot.onText(/O\'qituvchi/, (msg) => {
   const chatId = msg.chat.id;
   const userRole = msg.text.toLowerCase();
 
@@ -165,8 +225,8 @@ bot.onText(/O\'ituvchi/, (msg) => {
     `Iltimos, ism va familyangizni kiriting (masalan: Azizbek Avalov):`,
     {
       reply_markup: {
-        remove_keyboard: true
-      }
+        remove_keyboard: true,
+      },
     }
   );
 
@@ -174,11 +234,11 @@ bot.onText(/O\'ituvchi/, (msg) => {
     const userFullName = msg.text;
     bot.sendMessage(
       chatId,
-      `Iltimos, Bo'limingizni kiriting (masalan: RTTM):`,
+      `Iltimos, Faningizni kiriting (masalan: Informatika):`,
       {
         reply_markup: {
-          remove_keyboard: true
-        }
+          remove_keyboard: true,
+        },
       }
     );
 
@@ -189,8 +249,8 @@ bot.onText(/O\'ituvchi/, (msg) => {
         `Pasport rasmingizni tashlang`,
         {
           reply_markup: {
-            remove_keyboard: true
-          }
+            remove_keyboard: true,
+          },
         }
       );
 
@@ -199,11 +259,11 @@ bot.onText(/O\'ituvchi/, (msg) => {
           // Fayl photo formatda bo'lsa
           bot.sendMessage(
             chatId,
-            `Sizga login va parol yuboriladi`,
+            `Sizga login va parol tez orada yuboriladi`,
             {
               reply_markup: {
-                remove_keyboard: true
-              }
+                remove_keyboard: true,
+              },
             }
           );
         } else if (msg.text) {
@@ -211,8 +271,6 @@ bot.onText(/O\'ituvchi/, (msg) => {
           bot.sendMessage(chatId, `Rasm korinishda yuboring, iltimos.`);
         }
       });
-      
-      
     });
   });
 });
@@ -226,8 +284,8 @@ bot.onText(/Talaba/, (msg) => {
     `Iltimos, ism va familyangizni kiriting (masalan: Azizbek Avalov):`,
     {
       reply_markup: {
-        remove_keyboard: true
-      }
+        remove_keyboard: true,
+      },
     }
   );
 
@@ -235,11 +293,11 @@ bot.onText(/Talaba/, (msg) => {
     const userFullName = msg.text;
     bot.sendMessage(
       chatId,
-      `Iltimos, Guruxingizni kiriting (masalan: 103-BH):`,
+      `Iltimos, Guruhingizni kiriting (masalan: 103-BH):`,
       {
         reply_markup: {
-          remove_keyboard: true
-        }
+          remove_keyboard: true,
+        },
       }
     );
 
@@ -250,8 +308,8 @@ bot.onText(/Talaba/, (msg) => {
         `Pasport rasmingizni tashlang`,
         {
           reply_markup: {
-            remove_keyboard: true
-          }
+            remove_keyboard: true,
+          },
         }
       );
 
@@ -260,11 +318,11 @@ bot.onText(/Talaba/, (msg) => {
           // Fayl photo formatda bo'lsa
           bot.sendMessage(
             chatId,
-            `Sizga login va parol yuboriladi`,
+            `Sizga login va parol tez orada yuboriladi`,
             {
               reply_markup: {
-                remove_keyboard: true
-              }
+                remove_keyboard: true,
+              },
             }
           );
         } else if (msg.text) {
@@ -272,36 +330,46 @@ bot.onText(/Talaba/, (msg) => {
           bot.sendMessage(chatId, `Rasm korinishda yuboring, iltimos.`);
         }
       });
-      
-      
     });
   });
 });
 
-// "Loginni tiklash
 bot.onText(/🔐 Login va parolni tiklash/, (msg) => {
   const chatId = msg.chat.id;
 
-  bot.sendMessage(
-    chatId,
-    'Iltimos, ism va familyangizni kiriting (masalan: Azizbek Avalov):',
-    {
-      reply_markup: {
-        resize_keyboard: true
-      }
-    }
-  );
-  bot.once('message', (msg) => {
-    const userGroup = msg.text;
+  if (users[chatId]?.state === 'phone') {
+    users[chatId].state = 'loginPassword';
     bot.sendMessage(
       chatId,
-      `Tez orada login parol tiklab sizga habar yuboriladi`,
+      'Iltimos, ism va familyangizni kiriting (masalan: Azizbek Avalov):',
       {
         reply_markup: {
+          resize_keyboard: true,
           remove_keyboard: true,
-          resize_keyboard: true
-        }
+        },
       }
-    )
-  });
+    );
+    bot.once('message', (msg) => {
+      const userGroup = msg.text;
+      bot.sendMessage(
+        chatId,
+        `Tez orada login parol tiklab sizga habar yuboriladi`,
+        {
+          reply_markup: {
+            remove_keyboard: true,
+            resize_keyboard: true,
+          },
+        }
+      );
+    });
+  }
+});
+
+bot.onText(/./, (msg) => {
+  const chatId = msg.chat.id;
+
+  if (users[chatId]?.state === 'loginPassword') {
+    users[chatId].state = 'done';
+    const userState = users[chatId].state;
+  }
 });
